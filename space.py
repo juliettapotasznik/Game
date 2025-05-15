@@ -20,6 +20,14 @@ YELLOW       = (155, 155,   0)
 DARKGRAY     = ( 40,  40,  40)
 bgColor = BLACK
 
+# Game states
+WELCOME = 'welcome'
+MENU = 'menu'
+INSTRUCTIONS = 'instructions'
+GAME = 'game'
+PAUSE = 'pause'
+GAME_OVER = 'game_over'
+
 # Game constants
 PLAYERSIZE = 40
 ROCKSIZE = 30
@@ -124,122 +132,268 @@ class EnemyBullet(pygame.sprite.Sprite):
         if self.rect.top > WINDOWHEIGHT:
             self.kill()
 
+class Button:
+    def __init__(self, x, y, width, height, text, color=BRIGHTBLUE, hover_color=BLUE):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.hover_color = hover_color
+        self.is_hovered = False
+
+    def draw(self, surface):
+        color = self.hover_color if self.is_hovered else self.color
+        pygame.draw.rect(surface, color, self.rect)
+        font = pygame.font.Font(None, 36)
+        text_surface = font.render(self.text, True, WHITE)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        surface.blit(text_surface, text_rect)
+
+    def handle_event(self, event):
+        if event.type == MOUSEMOTION:
+            self.is_hovered = self.rect.collidepoint(event.pos)
+        elif event.type == MOUSEBUTTONDOWN:
+            if self.is_hovered:
+                return True
+        return False
+
+def draw_text(surface, text, size, x, y, color=WHITE):
+    font = pygame.font.Font(None, size)
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect(center=(x, y))
+    surface.blit(text_surface, text_rect)
+
+def show_welcome_screen(surface):
+    surface.fill(BLACK)
+    draw_text(surface, "SPACE", 72, WINDOWWIDTH//2, WINDOWHEIGHT//4-72)
+    draw_text(surface, "SHOOTER", 72, WINDOWWIDTH//2, WINDOWHEIGHT//4)
+    draw_text(surface, "Press any key to continue", 36, WINDOWWIDTH//2, WINDOWHEIGHT * 3//4)
+    pygame.display.flip()
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+            if event.type == KEYUP:
+                waiting = False
+
+def show_menu(surface):
+    buttons = {
+        'start': Button(WINDOWWIDTH//4, WINDOWHEIGHT//2 - 60, WINDOWWIDTH//2, 50, "Start Game"),
+        'instructions': Button(WINDOWWIDTH//4, WINDOWHEIGHT//2, WINDOWWIDTH//2, 50, "Instructions"),
+        'exit': Button(WINDOWWIDTH//4, WINDOWHEIGHT//2 + 60, WINDOWWIDTH//2, 50, "Exit")
+    }
+    
+    while True:
+        surface.fill(BLACK)
+        draw_text(surface, "SPACE", 72, WINDOWWIDTH//2, WINDOWHEIGHT//4-72)
+        draw_text(surface, "SHOOTER", 72, WINDOWWIDTH//2, WINDOWHEIGHT//4)
+        
+        for button in buttons.values():
+            button.draw(surface)
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+            
+            for button_name, button in buttons.items():
+                if button.handle_event(event):
+                    if button_name == 'start':
+                        return GAME
+                    elif button_name == 'instructions':
+                        return INSTRUCTIONS
+                    elif button_name == 'exit':
+                        terminate()
+
+def show_instructions(surface):
+    instructions = [
+        "HOW TO PLAY:",
+        "Move: Left/Right Arrow Keys",
+        "Shoot: Space Bar",
+        "Pause: P",
+        "Avoid rocks and enemy ships",
+        "Shoot enemies for points",
+        "You have 3 lives",
+        "",
+        "Press ESC to return to menu"
+    ]
+    
+    while True:
+        surface.fill(BLACK)
+        draw_text(surface, "INSTRUCTIONS", 72, WINDOWWIDTH//2, 80)
+        
+        for i, line in enumerate(instructions):
+            draw_text(surface, line, 30, WINDOWWIDTH//2, 180 + i * 40)
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+            if event.type == KEYUP:
+                if event.key == K_ESCAPE:
+                    return MENU
+
+def show_pause_screen(surface):
+    s = pygame.Surface((WINDOWWIDTH, WINDOWHEIGHT), pygame.SRCALPHA)
+    s.fill((0, 0, 0, 128))
+    surface.blit(s, (0, 0))
+    draw_text(surface, "PAUSED", 72, WINDOWWIDTH//2, WINDOWHEIGHT//3)
+    draw_text(surface, "Press P to continue", 36, WINDOWWIDTH//2, WINDOWHEIGHT//2)
+    draw_text(surface, "Press ESC for menu", 36, WINDOWWIDTH//2, WINDOWHEIGHT * 2//3)
+    pygame.display.flip()
+
 def main():
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
     DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
     pygame.display.set_caption('Space Shooter')
 
-    # Create sprite groups
-    all_sprites = pygame.sprite.Group()
-    rocks = pygame.sprite.Group()
-    player_bullets = pygame.sprite.Group()
-    enemy_bullets = pygame.sprite.Group()
-    enemies = pygame.sprite.Group()
-
-    # Create player
-    player = Player()
-    all_sprites.add(player)
-
-    # Game variables
-    score = 0
-    game_over = False
-    last_rock_spawn = 0
-    rock_spawn_delay = 1000  # Milliseconds
-    last_enemy_spawn = 0
-    enemy_spawn_delay = 3000  # Milliseconds
-    start_time = pygame.time.get_ticks()
-    current_rock_speed = ROCKSPEED
-
-    # Game loop
+    game_state = WELCOME
+    
     while True:
-        current_time = pygame.time.get_ticks()
-        
-        # Event handling
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                terminate()
-            elif event.type == KEYDOWN:
-                if event.key == K_SPACE and not game_over:
-                    bullet = player.shoot()
-                    all_sprites.add(bullet)
-                    player_bullets.add(bullet)
-                elif event.key == K_r and game_over:
-                    return  # Restart game
+        if game_state == WELCOME:
+            show_welcome_screen(DISPLAYSURF)
+            game_state = MENU
+            continue
+            
+        elif game_state == MENU:
+            game_state = show_menu(DISPLAYSURF)
+            continue
+            
+        elif game_state == INSTRUCTIONS:
+            game_state = show_instructions(DISPLAYSURF)
+            continue
 
-        if not game_over:
-            # Spawn rocks
-            if current_time - last_rock_spawn > rock_spawn_delay:
-                rock = Rock()
-                rock.speed = current_rock_speed
-                all_sprites.add(rock)
-                rocks.add(rock)
-                last_rock_spawn = current_time
+        # Create sprite groups
+        all_sprites = pygame.sprite.Group()
+        rocks = pygame.sprite.Group()
+        player_bullets = pygame.sprite.Group()
+        enemy_bullets = pygame.sprite.Group()
+        enemies = pygame.sprite.Group()
 
-            # Spawn enemies
-            if current_time - last_enemy_spawn > enemy_spawn_delay:
-                enemy = Enemy()
-                all_sprites.add(enemy)
-                enemies.add(enemy)
-                last_enemy_spawn = current_time
+        # Create player
+        player = Player()
+        all_sprites.add(player)
 
-            # Enemy shooting
-            for enemy in enemies:
-                bullet = enemy.shoot()
-                if bullet:
-                    all_sprites.add(bullet)
-                    enemy_bullets.add(bullet)
+        # Game variables
+        score = 0
+        game_over = False
+        paused = False
+        last_rock_spawn = 0
+        rock_spawn_delay = 1000
+        last_enemy_spawn = 0
+        enemy_spawn_delay = 3000
+        start_time = pygame.time.get_ticks()
+        current_rock_speed = ROCKSPEED
 
-            # Update
-            all_sprites.update()
+        # Game loop
+        while game_state == GAME:
+            current_time = pygame.time.get_ticks()
+            
+            # Event handling
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    terminate()
+                elif event.type == KEYDOWN:
+                    if event.key == K_SPACE and not game_over and not paused:
+                        bullet = player.shoot()
+                        all_sprites.add(bullet)
+                        player_bullets.add(bullet)
+                    elif event.key == K_r and game_over:
+                        game_state = GAME
+                        break
+                    elif event.key == K_p and not game_over:
+                        paused = not paused
+                        if paused:
+                            show_pause_screen(DISPLAYSURF)
+                    elif event.key == K_ESCAPE:
+                        if paused or game_over:
+                            game_state = MENU
+                            break
 
-            # Increase difficulty over time
-            if (current_time - start_time) % SPEED_INCREASE_TIME < 50:
-                current_rock_speed += SPEED_INCREASE
+            if paused:
+                FPSCLOCK.tick(FPS)
+                continue
 
-            # Collision detection
-            # Player bullets hitting rocks
-            hits = pygame.sprite.groupcollide(rocks, player_bullets, True, True)
-            for hit in hits:
-                player.score += 10
+            if not game_over:
+                # Spawn rocks
+                if current_time - last_rock_spawn > rock_spawn_delay:
+                    rock = Rock()
+                    rock.speed = current_rock_speed
+                    all_sprites.add(rock)
+                    rocks.add(rock)
+                    last_rock_spawn = current_time
 
-            # Player bullets hitting enemies
-            hits = pygame.sprite.groupcollide(enemies, player_bullets, True, True)
-            for hit in hits:
-                player.score += 20
+                # Spawn enemies
+                if current_time - last_enemy_spawn > enemy_spawn_delay:
+                    enemy = Enemy()
+                    all_sprites.add(enemy)
+                    enemies.add(enemy)
+                    last_enemy_spawn = current_time
 
-            # Rocks hitting player
-            hits = pygame.sprite.spritecollide(player, rocks, True)
-            if hits:
-                player.lives -= 1
-                if player.lives <= 0:
-                    game_over = True
+                # Enemy shooting
+                for enemy in enemies:
+                    bullet = enemy.shoot()
+                    if bullet:
+                        all_sprites.add(bullet)
+                        enemy_bullets.add(bullet)
 
-            # Enemy bullets hitting player
-            hits = pygame.sprite.spritecollide(player, enemy_bullets, True)
-            if hits:
-                player.lives -= 1
-                if player.lives <= 0:
-                    game_over = True
+                # Update
+                all_sprites.update()
 
-        # Draw
-        DISPLAYSURF.fill(bgColor)
-        all_sprites.draw(DISPLAYSURF)
-        
-        # Draw score and lives
-        font = pygame.font.Font(None, 36)
-        score_text = font.render(f'Score: {player.score}', True, WHITE)
-        lives_text = font.render(f'Lives: {player.lives}', True, WHITE)
-        DISPLAYSURF.blit(score_text, (10, 10))
-        DISPLAYSURF.blit(lives_text, (10, 40))
+                # Increase difficulty over time
+                if (current_time - start_time) % SPEED_INCREASE_TIME < 50:
+                    current_rock_speed += SPEED_INCREASE
 
-        if game_over:
-            game_over_text = font.render('Game Over! Press R to restart', True, WHITE)
-            text_rect = game_over_text.get_rect(center=(WINDOWWIDTH/2, WINDOWHEIGHT/2))
-            DISPLAYSURF.blit(game_over_text, text_rect)
+                # Collision detection
+                # Player bullets hitting rocks
+                hits = pygame.sprite.groupcollide(rocks, player_bullets, True, True)
+                for hit in hits:
+                    player.score += 10
 
-        pygame.display.flip()
-        FPSCLOCK.tick(FPS)
+                # Player bullets hitting enemies
+                hits = pygame.sprite.groupcollide(enemies, player_bullets, True, True)
+                for hit in hits:
+                    player.score += 20
+
+                # Rocks hitting player
+                hits = pygame.sprite.spritecollide(player, rocks, True)
+                if hits:
+                    player.lives -= 1
+                    if player.lives <= 0:
+                        game_over = True
+
+                # Enemy bullets hitting player
+                hits = pygame.sprite.spritecollide(player, enemy_bullets, True)
+                if hits:
+                    player.lives -= 1
+                    if player.lives <= 0:
+                        game_over = True
+
+            # Draw
+            DISPLAYSURF.fill(bgColor)
+            all_sprites.draw(DISPLAYSURF)
+            
+            # Draw score and lives
+            font = pygame.font.Font(None, 36)
+            score_text = font.render(f'Score: {player.score}', True, WHITE)
+            lives_text = font.render(f'Lives: {player.lives}', True, WHITE)
+            DISPLAYSURF.blit(score_text, (10, 10))
+            DISPLAYSURF.blit(lives_text, (10, 40))
+
+            if game_over:
+                game_over_text = font.render('Game Over!', True, WHITE)
+                text_rect = game_over_text.get_rect(center=(WINDOWWIDTH/2, WINDOWHEIGHT/2 - 30))
+                DISPLAYSURF.blit(game_over_text, text_rect)
+                
+                instruction_text = font.render('Press R to restart or ESC for menu', True, WHITE)
+                text_rect = instruction_text.get_rect(center=(WINDOWWIDTH/2, WINDOWHEIGHT/2 + 30))
+                DISPLAYSURF.blit(instruction_text, text_rect)
+
+            pygame.display.flip()
+            FPSCLOCK.tick(FPS)
 
 def terminate():
     pygame.quit()
