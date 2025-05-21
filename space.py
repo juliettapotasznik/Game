@@ -1,4 +1,4 @@
-import random, sys, time, pygame
+import random, sys, pygame
 from pygame.locals import *
 
 FPS = 30
@@ -221,7 +221,7 @@ def show_instructions(surface):
     
     while True:
         surface.fill(BLACK)
-        draw_text(surface, "INSTRUCTIONS", 72, WINDOWWIDTH//2, 80)
+        draw_text(surface, "INSTRUCTIONS", 60, WINDOWWIDTH//2, 80)
         
         for i, line in enumerate(instructions):
             draw_text(surface, line, 30, WINDOWWIDTH//2, 180 + i * 40)
@@ -236,6 +236,8 @@ def show_instructions(surface):
                     return MENU
 
 def show_pause_screen(surface):
+
+    
     s = pygame.Surface((WINDOWWIDTH, WINDOWHEIGHT), pygame.SRCALPHA)
     s.fill((0, 0, 0, 128))
     surface.blit(s, (0, 0))
@@ -244,8 +246,33 @@ def show_pause_screen(surface):
     draw_text(surface, "Press ESC for menu", 36, WINDOWWIDTH//2, WINDOWHEIGHT * 2//3)
     pygame.display.flip()
 
+def reset_game():
+    # Create sprite groups
+    all_sprites = pygame.sprite.Group()
+    rocks = pygame.sprite.Group()
+    player_bullets = pygame.sprite.Group()
+    enemy_bullets = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
+
+    # Create player
+    player = Player()
+    all_sprites.add(player)
+
+    return all_sprites, rocks, player_bullets, enemy_bullets, enemies, player
+
 def main():
     pygame.init()
+    pygame.mixer.init()  # Initialize the sound mixer
+    
+    # Load sound effects
+    shoot_sound = pygame.mixer.Sound('piu.wav')
+    explosion_sound = pygame.mixer.Sound('bum.wav')
+    
+    # Load and play background music
+    pygame.mixer.music.load('audio.wav')
+    pygame.mixer.music.play(-1)  # -1 means loop indefinitely
+    pygame.mixer.music.set_volume(0.5)  # Set the volume to 50%
+    
     FPSCLOCK = pygame.time.Clock()
     DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
     pygame.display.set_caption('Space Shooter')
@@ -266,16 +293,8 @@ def main():
             game_state = show_instructions(DISPLAYSURF)
             continue
 
-        # Create sprite groups
-        all_sprites = pygame.sprite.Group()
-        rocks = pygame.sprite.Group()
-        player_bullets = pygame.sprite.Group()
-        enemy_bullets = pygame.sprite.Group()
-        enemies = pygame.sprite.Group()
-
-        # Create player
-        player = Player()
-        all_sprites.add(player)
+        # Initialize game components
+        all_sprites, rocks, player_bullets, enemy_bullets, enemies, player = reset_game()
 
         # Game variables
         score = 0
@@ -301,13 +320,24 @@ def main():
                         bullet = player.shoot()
                         all_sprites.add(bullet)
                         player_bullets.add(bullet)
+                        shoot_sound.play()
                     elif event.key == K_r and game_over:
-                        game_state = GAME
-                        break
+                        # Reset all game components
+                        all_sprites, rocks, player_bullets, enemy_bullets, enemies, player = reset_game()
+                        game_over = False
+                        score = 0
+                        player.score = 0
+                        player.lives = 3
+                        current_rock_speed = ROCKSPEED
+                        # Restart background music
+                        pygame.mixer.music.play(-1)
+                        pygame.mixer.music.set_volume(0.5)
+                        continue  # Skip to the next frame with reset state
                     elif event.key == K_p and not game_over:
                         paused = not paused
                         if paused:
                             show_pause_screen(DISPLAYSURF)
+                        
                     elif event.key == K_ESCAPE:
                         if paused or game_over:
                             game_state = MENU
@@ -352,11 +382,13 @@ def main():
                 hits = pygame.sprite.groupcollide(rocks, player_bullets, True, True)
                 for hit in hits:
                     player.score += 10
+                    explosion_sound.play()  # Play explosion sound
 
                 # Player bullets hitting enemies
                 hits = pygame.sprite.groupcollide(enemies, player_bullets, True, True)
                 for hit in hits:
                     player.score += 20
+                    explosion_sound.play()  # Play explosion sound
 
                 # Rocks hitting player
                 hits = pygame.sprite.spritecollide(player, rocks, True)
@@ -364,6 +396,7 @@ def main():
                     player.lives -= 1
                     if player.lives <= 0:
                         game_over = True
+                        pygame.mixer.music.stop()  # Stop background music when game is over
 
                 # Enemy bullets hitting player
                 hits = pygame.sprite.spritecollide(player, enemy_bullets, True)
@@ -371,6 +404,7 @@ def main():
                     player.lives -= 1
                     if player.lives <= 0:
                         game_over = True
+                        pygame.mixer.music.stop()  # Stop background music when game is over
 
             # Draw
             DISPLAYSURF.fill(bgColor)
@@ -385,11 +419,13 @@ def main():
 
             if game_over:
                 game_over_text = font.render('Game Over!', True, WHITE)
-                text_rect = game_over_text.get_rect(center=(WINDOWWIDTH/2, WINDOWHEIGHT/2 - 30))
+                text_rect = game_over_text.get_rect(center=(WINDOWWIDTH//2, WINDOWHEIGHT//2 - 30))
                 DISPLAYSURF.blit(game_over_text, text_rect)
                 
-                instruction_text = font.render('Press R to restart or ESC for menu', True, WHITE)
-                text_rect = instruction_text.get_rect(center=(WINDOWWIDTH/2, WINDOWHEIGHT/2 + 30))
+                # Use a smaller font size for instructions
+                small_font = pygame.font.Font(None, 30)
+                instruction_text = small_font.render('Press R to restart or ESC for menu', True, WHITE)
+                text_rect = instruction_text.get_rect(center=(WINDOWWIDTH//2, WINDOWHEIGHT//2 + 20))
                 DISPLAYSURF.blit(instruction_text, text_rect)
 
             pygame.display.flip()
