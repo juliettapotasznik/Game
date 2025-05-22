@@ -4,3 +4,5 @@
 
 ![Zrzut ekranu z gry](https://github.com/juliettapotasznik/Game/blob/18218a213e6d519ac6a26b1c337b8990eff399b3/Zrzut%20ekranu%202025-05-21%20185056.png)
 
+![Zrzut ekranu z gry](https://github.com/juliettapotasznik/Game/blob/4f734480d2416b4e1f4ce880e849fc500a921324/Zrzut%20ekranu%202025-05-21%20185105.png)
+
