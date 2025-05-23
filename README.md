@@ -26,19 +26,6 @@ Space Shooter is an engaging arcade game where you control a spaceship, dodging 
 - Python 3.x
 - Pygame library
 
-## Installation
-
-1. Clone this repository:
-```bash
-git clone [repository-url]
-cd [repository-name]
-```
-
-2. Install the required dependencies:
-```bash
-pip install pygame
-```
-
 ## Game Controls
 
 - **Left Arrow Key**: Move ship left
